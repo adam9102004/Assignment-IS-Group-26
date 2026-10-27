@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure School Mark Entry System</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f4f8; margin: 0; padding: 20px; color: #2d3748; }
+        .container { max-width: 750px; margin: auto; background: white; padding: 35px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        h1 { color: #1a365d; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #718096; margin-bottom: 25px; font-size: 13px; }
+        
+        /* Auth Screens */
+        .auth-card { background: #f8fafc; padding: 25px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .hidden { display: none !important; }
+        .toggle-link { text-align: center; margin-top: 15px; font-size: 13px; color: #3182ce; cursor: pointer; font-weight: 600; }
+        .toggle-link:hover { text-decoration: underline; }
+        
+        /* Portals */
+        .portal-card { background: #f8fafc; padding: 25px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 20px; }
+        .user-header { display: flex; justify-content: space-between; align-items: center; background: #ebf8ff; padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; color: #2b6cb0; font-weight: bold; }
+        
+        form { display: flex; flex-direction: column; gap: 12px; }
+        label { font-weight: 600; font-size: 13px; color: #4a5568; }
+        input, select, textarea { padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; }
+        button { background: #3182ce; color: white; border: none; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #2b6cb0; }
+        button.logout { background: #e53e3e; padding: 6px 12px; font-size: 12px; }
+        button.logout:hover { background: #c53030; }
+
+        /* Output UI Cards */
+        .result-container { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .card { background: white; border: 1px solid #e2e8f0; border-left: 5px solid #3182ce; padding: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .card.success { border-left-color: #38a169; background: #f0fff4; }
+        .card.error { border-left-color: #e53e3e; background: #fff5f5; color: #c53030; }
+        .card-title { font-weight: bold; color: #2d3748; font-size: 15px; margin-bottom: 5px; }
+        .card-body { font-size: 14px; color: #4a5568; }
+        .card-meta { font-size: 11px; color: #a0aec0; margin-top: 8px; font-family: monospace; }
+        .badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; background: #e2e8f0; color: #4a5568; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Secure School Mark Entry</h1>
+    <div class="subtitle">Encrypted RBAC Architecture (AES-256-CBC | DES-CBC | JWT Auth)</div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="auth-card">
+        <h3>System Login</h3>
+        <form id="login-form">
+            <label>Username:</label>
+            <input type="text" id="login-user" placeholder="Enter username" required>
+
+            <label>Password / Access Code:</label>
+            <input type="password" id="login-pass" placeholder="Enter password" required>
+
+            <button type="submit">Secure Login</button>
+        </form>
+        <div class="toggle-link" onclick="toggleAuthMode('signup')">Don't have an account? Sign up here</div>
+        <div id="login-alert" class="result-container"></div>
+    </div>
+
+    <!-- SIGN UP SCREEN -->
+    <div id="signup-screen" class="auth-card hidden">
+        <h3>Create New Account</h3>
+        <form id="signup-form">
+            <label>Full Name:</label>
+            <input type="text" id="su-name" placeholder="e.g., Atan Bin Ahmad" required>
+
+            <label>Username:</label>
+            <input type="text" id="su-user" placeholder="Choose a username" required>
+
+            <label>Password / Access Code:</label>
+            <input type="password" id="su-pass" placeholder="Choose a secure password" required>
+
+            <label>Role:</label>
+            <select id="su-role" onchange="handleRoleChange()">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher / Admin</option>
+            </select>
+
+            <div id="student-id-group">
+                <label>Student ID (Must match marks entered by teacher):</label>
+                <input type="text" id="su-studentid" placeholder="e.g., atan123">
+            </div>
+
+            <button type="submit">Register & Access Portal</button>
+        </form>
+        <div class="toggle-link" onclick="toggleAuthMode('login')">Already have an account? Log in here</div>
+        <div id="signup-alert" class="result-container"></div>
+    </div>
+
+    <!-- TEACHER PORTAL -->
+    <div id="teacher-portal" class="portal-card hidden">
+        <div class="user-header">
+            <span id="teacher-welcome">Welcome, Teacher</span>
+            <button class="logout" onclick="logout()">Sign Out</button>
+        </div>
+        <h3 style="margin-top: 0; color: #2b6cb0;">Teacher Portal (Data Entry & Encryption)</h3>
+        <form id="teacher-form">
+            <label>Student ID (Target Student):</label>
+            <input type="text" id="t-student-id" placeholder="atan123" required>
+
+            <label>Subject Code:</label>
+            <input type="text" id="t-subject" placeholder="CRYPTO-101" required>
+
+            <label>Student Grade & Details:</label>
+            <input type="text" id="t-grade" placeholder="A (95%)" required>
+
+            <label>Internal Audit Report (Tier 2 DES):</label>
+            <textarea id="t-report" placeholder="Confidential faculty notes..."></textarea>
+
+            <button type="submit">Encrypt & Securely Store Mark</button>
+        </form>
+        <div id="teacher-output" class="result-container"></div>
+    </div>
+
+    <!-- STUDENT PORTAL -->
+    <div id="student-portal" class="portal-card hidden">
+        <div class="user-header">
+            <span id="student-welcome">Welcome, Student</span>
+            <button class="logout" onclick="logout()">Sign Out</button>
+        </div>
+        <h3 style="margin-top: 0; color: #2b6cb0;">Student Portal (Encrypted Results View)</h3>
+        <p style="font-size: 13px; color: #64748b;">Showing records exclusively bound to your authenticated Student ID.</p>
+        <button onclick="fetchStudentResults()">Refresh My Decrypted Results</button>
+        <div id="student-output" class="result-container"></div>
+    </div>
+
+</div>
+
+<script>
+    let authToken = null;
+    let currentUser = null;
+
+    function toggleAuthMode(mode) {
+        if (mode === 'signup') {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('signup-screen').classList.remove('hidden');
+        } else {
+            document.getElementById('signup-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+        }
+    }
+
+    function handleRoleChange() {
+        const role = document.getElementById('su-role').value;
+        const group = document.getElementById('student-id-group');
+        group.style.display = role === 'student' ? 'flex' : 'none';
+    }
+
+    // Handle Login
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-user').value;
+        const password = document.getElementById('login-pass').value;
+        const alertBox = document.getElementById('login-alert');
+
+        try {
+            const res = await fetch('/api/v1/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            alertBox.innerHTML = `<div class="card error"><div class="card-title">Authentication Failed</div><div class="card-body">${err.message}</div></div>`;
+        }
+    });
+
+    // Handle Sign Up
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('su-name').value;
+        const username = document.getElementById('su-user').value;
+        const password = document.getElementById('su-pass').value;
+        const role = document.getElementById('su-role').value;
+        const studentId = document.getElementById('su-studentid').value;
+        const alertBox = document.getElementById('signup-alert');
+
+        try {
+            const res = await fetch('/api/v1/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, username, password, role, studentId })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            handleSuccessfulAuth(data);
+        } catch (err) {
+            alertBox.innerHTML = `<div class="card error"><div class="card-title">Registration Failed</div><div class="card-body">${err.message}</div></div>`;
+        }
+    });
+
+    function handleSuccessfulAuth(data) {
+        authToken = data.accessToken;
+        currentUser = data.user;
+
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('signup-screen').classList.add('hidden');
+
+        if (currentUser.role === 'teacher') {
+            document.getElementById('teacher-portal').classList.remove('hidden');
+            document.getElementById('teacher-welcome').textContent = `Logged in as: ${currentUser.name} (Teacher)`;
+        } else if (currentUser.role === 'student') {
+            document.getElementById('student-portal').classList.remove('hidden');
+            document.getElementById('student-welcome').textContent = `Logged in as: ${currentUser.name} (Student ID: ${currentUser.studentId})`;
+            fetchStudentResults();
+        }
+    }
+
+    // Teacher Mark Submission
+    document.getElementById('teacher-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const studentId = document.getElementById('t-student-id').value;
+        const subjectCode = document.getElementById('t-subject').value;
+        const grade = document.getElementById('t-grade').value;
+        const internalReport = document.getElementById('t-report').value;
+        const outputBox = document.getElementById('teacher-output');
+
+        try {
+            const res = await fetch('/api/v1/teacher/marks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ studentId, subjectCode, grade, internalReport })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            outputBox.innerHTML = `<div class="card success"><div class="card-title">Success</div><div class="card-body">${data.message}</div><div class="card-meta">Record ID: ${data.recordId} | Tier 1 AES Encrypted</div></div>`;
+            document.getElementById('teacher-form').reset();
+        } catch (err) {
+            outputBox.innerHTML = `<div class="card error"><div class="card-title">Error</div><div class="card-body">${err.message}</div></div>`;
+        }
+    });
+
+    // Fetch Student Results
+    async function fetchStudentResults() {
+        const outputBox = document.getElementById('student-output');
+        try {
+            const res = await fetch('/api/v1/student/results', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            if (data.results.length === 0) {
+                outputBox.innerHTML = `<div class="card"><div class="card-title">No Records Found</div><div class="card-body">No encrypted mark entries match your student ID (${data.studentId}) yet. Ask your teacher to enter your grades using this Student ID.</div></div>`;
+                return;
+            }
+
+            let html = '';
+            data.results.forEach(r => {
+                html += `
+                    <div class="card">
+                        <div class="card-title">Subject: ${r.subjectCode} <span class="badge">${r.cipherUsed}</span></div>
+                        <div class="card-body"><strong>Decrypted Details:</strong> ${r.details}</div>
+                        <div class="card-meta">Record ID: ${r.recordId} | Timestamp: ${new Date(r.createdAt).toLocaleString()}</div>
+                    </div>
+                `;
+            });
+            outputBox.innerHTML = html;
+        } catch (err) {
+            outputBox.innerHTML = `<div class="card error"><div class="card-title">Access Error</div><div class="card-body">${err.message}</div></div>`;
+        }
+    }
+
+    // Logout
+    function logout() {
+        authToken = null;
+        currentUser = null;
+        document.getElementById('teacher-portal').classList.add('hidden');
+        document.getElementById('student-portal').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('login-form').reset();
+        document.getElementById('signup-form').reset();
+        document.getElementById('login-alert').innerHTML = '';
+        document.getElementById('signup-alert').innerHTML = '';
+    }
+</script>
+
+</body>
+</html>
